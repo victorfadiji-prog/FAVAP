@@ -13,8 +13,15 @@ import {
   Volume2, Monitor, Signal, History
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import EmojiPicker from 'emoji-picker-react';
 
 const ICE_SERVERS = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+
+const formatDuration = (s) => {
+  const mins = Math.floor(s / 60);
+  const secs = s % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 
 const playSound = (type) => {
   const sounds = {
@@ -151,8 +158,6 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
     } catch (e) { toast.error('Screen sharing failed'); }
   };
 
-  const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column', color: 'white' }}>
       <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -179,7 +184,7 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.5)', padding: '6px 12px', borderRadius: 20, fontSize: 12 }}>
             <Signal size={14} color={connState === 'connected' ? '#22c55e' : '#eab308'} /> {connState}
           </div>
-          <div style={{ textAlign: 'center' }}><h2 style={{ fontSize: 24, fontWeight: 700 }}>{otherUser?.username}</h2><p style={{ opacity: 0.8 }}>{isConnected ? formatTime(timer) : 'Waiting...'}</p></div>
+          <div style={{ textAlign: 'center' }}><h2 style={{ fontSize: 24, fontWeight: 700 }}>{otherUser?.username}</h2><p style={{ opacity: 0.8 }}>{isConnected ? formatDuration(timer) : 'Waiting...'}</p></div>
           <div style={{ width: 60 }} />
         </div>
         <div style={{ flex: 1 }} />
@@ -308,9 +313,13 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
   const { profile } = useAuthStore();
   const { messages, fetchMessages, sendMessage, addMessage } = useChatStore();
   const [text, setText] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
+
   useEffect(() => { if (conversation?.id) fetchMessages(conversation.id); }, [conversation?.id, fetchMessages]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  
   useEffect(() => {
     if (!conversation?.id) return;
     const channel = supabase.channel(`chat:${conversation.id}`)
@@ -322,9 +331,21 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
       ).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [conversation?.id, profile?.id, addMessage]);
-  const handleSend = async () => { if (!text.trim()) return; await sendMessage({ conversation_id: conversation.id, sender_id: profile.id, content: text.trim(), type: 'text' }); setText(''); };
+
+  const handleSend = async () => { 
+    if (!text.trim()) return; 
+    await sendMessage({ conversation_id: conversation.id, sender_id: profile.id, content: text.trim(), type: 'text' }); 
+    setText(''); 
+    setShowEmoji(false);
+  };
+
+  const onEmojiClick = (emojiData) => {
+    setText(prev => prev + emojiData.emoji);
+  };
+
   if (!conversation) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><h3>Select a chat</h3></div>;
   const otherUser = conversation.conversation_members?.find(m => m.user_id !== profile?.id)?.profiles;
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
       <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 14, background: 'var(--bg-secondary)' }}>
@@ -340,9 +361,24 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
         ))}
         <div ref={bottomRef} />
       </div>
-      <div style={{ padding: '20px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <input className="input" placeholder="Type a message..." value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} style={{ background: 'var(--bg-elevated)', border: 'none' }} />
+      <div style={{ padding: '20px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', position: 'relative' }}>
+        {showEmoji && (
+          <div style={{ position: 'absolute', bottom: '80px', left: '20px', zIndex: 100 }}>
+            <EmojiPicker onEmojiClick={onEmojiClick} theme="dark" />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button className="btn btn-ghost btn-icon" onClick={() => fileInputRef.current?.click()}><Paperclip size={20} /></button>
+          <input type="file" ref={fileInputRef} style={{ display: 'none' }} />
+          <button className="btn btn-ghost btn-icon" onClick={() => setShowEmoji(!showEmoji)}><Smile size={20} /></button>
+          <input 
+            className="input" 
+            placeholder="Type a message..." 
+            value={text} 
+            onChange={e => setText(e.target.value)} 
+            onKeyDown={e => e.key === 'Enter' && handleSend()} 
+            style={{ background: 'var(--bg-elevated)', border: 'none' }} 
+          />
           <button className="btn btn-primary btn-icon" onClick={handleSend} style={{ width: 44, height: 44, borderRadius: '50%' }}><Send size={20} /></button>
         </div>
       </div>
