@@ -564,6 +564,7 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
 
 export default function MessagesPage() {
   const { profile } = useAuthStore();
+  const { fetchConversations } = useChatStore();
   const [activeConv, setActiveConv] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -577,6 +578,21 @@ export default function MessagesPage() {
   
   useEffect(() => {
     if (!profile?.id) return;
+    
+    // Listen for new conversations where the user is a member
+    const convChannel = supabase.channel('conversation_updates')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'conversation_members', 
+        filter: `user_id=eq.${profile.id}` 
+      }, async () => {
+        // Refresh conversation list when a new membership is created
+        await fetchConversations(profile.id);
+        toast('New conversation started!');
+      })
+      .subscribe();
+
     const channel = supabase.channel('global_calls')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calls' }, async (payload) => {
         if (payload.eventType === 'INSERT' && payload.new.receiver_id === profile.id && payload.new.status === 'ringing') {
@@ -597,8 +613,11 @@ export default function MessagesPage() {
       }).subscribe();
     supabase.from('calls').select('*, caller:caller_id(*), receiver:receiver_id(*)').or(`receiver_id.eq.${profile.id},caller_id.eq.${profile.id}`).in('status', ['ringing', 'accepted']).limit(1)
       .then(({ data }) => { if (data?.[0]) setActiveCall(data[0]); });
-    return () => { supabase.removeChannel(channel); };
-  }, [profile?.id, activeCall?.id]);
+    return () => { 
+      supabase.removeChannel(channel); 
+      supabase.removeChannel(convChannel);
+    };
+  }, [profile?.id, activeCall?.id, fetchConversations]);
   
   const handleStartCall = async (type, targetUser) => {
     if (activeCall) { toast.error('Call in progress'); return; }

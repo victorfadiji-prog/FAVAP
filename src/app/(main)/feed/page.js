@@ -283,7 +283,25 @@ export default function FeedPage() {
   const { posts, loading, fetchPosts } = useFeedStore();
   const [page, setPage] = useState(0);
 
-  useEffect(() => { fetchPosts(0); }, [fetchPosts]);
+  useEffect(() => {
+    fetchPosts();
+    
+    // Realtime posts
+    const channel = supabase.channel('feed_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+        const { data } = await supabase.from('posts').select('*, profiles:user_id(id, username, avatar_url), post_likes(user_id), post_comments(id, content, created_at, profiles:user_id(username, avatar_url)), saved_posts(user_id)').eq('id', payload.new.id).single();
+        if (data) {
+          // Add to store if not already there (avoid duplicates from current user)
+          useFeedStore.setState(s => {
+            if (s.posts.some(p => p.id === data.id)) return s;
+            return { posts: [data, ...s.posts] };
+          });
+        }
+      })
+      .subscribe();
+      
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchPosts]);
 
   const loadMore = useCallback(() => {
     const next = page + 1;

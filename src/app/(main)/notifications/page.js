@@ -33,6 +33,21 @@ export default function NotificationsPage() {
       setLoading(false);
     };
     load();
+
+    // Realtime notifications
+    const channel = supabase.channel(`notifs:${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, async (payload) => {
+        const { data } = await supabase.from('notifications').select('*, actor:actor_id(id, username, avatar_url)').eq('id', payload.new.id).single();
+        if (data) {
+          setNotifications(prev => [data, ...prev]);
+          if (profile.notification_settings?.sounds !== false) {
+            new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
+          }
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [profile]);
 
   const markAllRead = async () => {
