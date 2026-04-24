@@ -23,6 +23,7 @@ CREATE TABLE public.profiles (
   post_count INT DEFAULT 0,
   notification_settings JSONB DEFAULT '{"email": true, "push": true, "mentions": true, "messages": true, "likes": true, "sounds": true}',
   privacy_settings JSONB DEFAULT '{"profile_visibility": "public", "show_last_seen": true, "allow_mentions": "everyone"}',
+  ringtone_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -252,6 +253,9 @@ CREATE TABLE public.servers (
   owner_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   member_count INT DEFAULT 1,
   is_public BOOLEAN DEFAULT TRUE,
+  is_verified BOOLEAN DEFAULT FALSE,
+  category TEXT DEFAULT 'general',
+  website_url TEXT,
   invite_code TEXT UNIQUE DEFAULT substr(md5(random()::text), 0, 9),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -300,23 +304,7 @@ CREATE TABLE public.hashtags (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 26. VIDEO LIKES
-CREATE TABLE public.video_likes (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  video_id UUID REFERENCES public.videos(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(video_id, user_id)
-);
-
--- 27. VIDEO COMMENTS
-CREATE TABLE public.video_comments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  video_id UUID REFERENCES public.videos(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Consolidating with initial definitions
 
 -- 28. VIDEO SAVES
 CREATE TABLE public.video_saves (

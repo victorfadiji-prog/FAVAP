@@ -76,10 +76,26 @@ function VideoCard({ video, currentUserId }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)} style={{ padding: 0, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Link href={`/videos/${video.id}`} style={{ display: 'block', position: 'relative', aspectRatio: '16/9', background: '#000' }}>
-        {video.thumbnail_url ? <img src={video.thumbnail_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Play size={40} opacity={0.2} /></div>}
-        <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.8)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {formatDuration(video.duration)}</div>
-        {isHovered && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Play size={24} fill="white" color="white" /></div></div>}
+      <Link href={`/videos/${video.id}`} style={{ display: 'block', position: 'relative', aspectRatio: '16/9', background: '#000', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
+        {video.thumbnail_url ? (
+          <img src={video.thumbnail_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+        ) : (
+          <div style={{ 
+            height: '100%', 
+            background: `linear-gradient(135deg, var(--primary), var(--accent))`, 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: 20,
+            textAlign: 'center'
+          }}>
+            <Play size={48} color="white" fill="white" style={{ opacity: 0.5, marginBottom: 12 }} />
+            <div style={{ color: 'white', fontSize: 14, fontWeight: 700, opacity: 0.9 }}>{video.title}</div>
+          </div>
+        )}
+        <div style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(0,0,0,0.8)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, backdropFilter: 'blur(4px)' }}><Clock size={12} /> {formatDuration(video.duration)}</div>
+        {isHovered && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}><div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(0,0,0,0.4)' }}><Play size={28} fill="white" color="white" /></div></div>}
       </Link>
       
       <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>

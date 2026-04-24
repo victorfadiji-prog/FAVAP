@@ -52,25 +52,39 @@ export const useVideoStore = create((set, get) => ({
     return { data, error };
   },
 
-  toggleLike: async (videoId, userId) => {
-    const { videos } = get();
-    const video = videos.find(v => v.id === videoId);
+  toggleLike: async (videoId, userId, isLike = true) => {
+    const { videos, currentVideo } = get();
+    
+    // Find video in list or use currentVideo
+    const video = videos.find(v => v.id === videoId) || (currentVideo?.id === videoId ? currentVideo : null);
     if (!video) return;
-    const liked = video.video_likes?.some(l => l.user_id === userId);
+
+    // Check existing interaction
+    const existing = video.video_likes?.find(l => l.user_id === userId);
+    const wasSameType = existing && existing.is_like === isLike;
+
+    // Optimistic update
+    const updateLikes = (likes) => {
+      if (wasSameType) return likes.filter(l => l.user_id !== userId);
+      const otherLikes = (likes || []).filter(l => l.user_id !== userId);
+      return [...otherLikes, { user_id: userId, is_like: isLike }];
+    };
+
+    if (currentVideo?.id === videoId) {
+      set({ currentVideo: { ...currentVideo, video_likes: updateLikes(currentVideo.video_likes) } });
+    }
 
     const newVideos = videos.map(v => {
-      if (v.id === videoId) {
-        const likes = liked ? v.video_likes.filter(l => l.user_id !== userId) : [...(v.video_likes || []), { user_id: userId }];
-        return { ...v, video_likes: likes };
-      }
+      if (v.id === videoId) return { ...v, video_likes: updateLikes(v.video_likes) };
       return v;
     });
     set({ videos: newVideos });
 
-    if (liked) {
+    // DB Update
+    if (wasSameType) {
       await supabase.from('video_likes').delete().eq('video_id', videoId).eq('user_id', userId);
     } else {
-      await supabase.from('video_likes').insert({ video_id: videoId, user_id: userId });
+      await supabase.from('video_likes').upsert({ video_id: videoId, user_id: userId, is_like: isLike }, { onConflict: 'video_id,user_id' });
     }
   },
 

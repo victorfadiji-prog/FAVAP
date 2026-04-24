@@ -8,7 +8,9 @@ import {
   Layout, Eye, Lock, UserX, Key, BellOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
+import { Music, Upload, Volume2 } from 'lucide-react';
 
 const Switch = ({ enabled, onChange }) => (
   <button 
@@ -287,6 +289,43 @@ export default function SettingsPage() {
                             <Switch enabled={notifSettings[item.id]} onChange={v => setNotifSettings({...notifSettings, [item.id]: v})} />
                           </div>
                         ))}
+                      </div>
+                    <section>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase' }}>Custom Ringtone</h3>
+                      <div className="card" style={{ background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', padding: 24, textAlign: 'center' }}>
+                        {profile?.ringtone_url ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 16 }}>
+                            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                              <Volume2 size={24} />
+                            </div>
+                            <div style={{ textAlign: 'left' }}>
+                              <div style={{ fontWeight: 600, fontSize: 14 }}>Custom Ringtone Active</div>
+                              <audio src={profile.ringtone_url} controls style={{ height: 32, marginTop: 8 }} />
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ marginBottom: 16 }}>
+                            <Music size={32} style={{ color: 'var(--text-muted)', opacity: 0.5, marginBottom: 8 }} />
+                            <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Using default ringtone</div>
+                          </div>
+                        )}
+                        <label className="btn btn-secondary" style={{ cursor: 'pointer', margin: '0 auto' }}>
+                          <Upload size={16} /> {profile?.ringtone_url ? 'Change Ringtone' : 'Upload Ringtone'}
+                          <input type="file" accept="audio/*" hidden onChange={async (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            setLoading(true);
+                            const ext = file.name.split('.').pop();
+                            const path = `ringtones/${profile.id}/${Date.now()}.${ext}`;
+                            const { data, error } = await supabase.storage.from('media').upload(path, file);
+                            if (error) toast.error('Upload failed');
+                            else {
+                              const { data: urlData } = supabase.storage.from('media').getPublicUrl(data.path);
+                              await handleSave({ ringtone_url: urlData.publicUrl });
+                            }
+                            setLoading(false);
+                          }} />
+                        </label>
                       </div>
                     </section>
                   </div>

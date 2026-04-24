@@ -114,6 +114,34 @@ function CreatePost() {
     setMediaPreviews(p => p.filter((_, i) => i !== idx));
   };
 
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionResults, setMentionResults] = useState([]);
+  const [showMentions, setShowMentions] = useState(false);
+
+  useEffect(() => {
+    const lastWord = content.split(' ').pop();
+    if (lastWord?.startsWith('@') && lastWord.length > 1) {
+      setMentionQuery(lastWord.slice(1));
+      setShowMentions(true);
+    } else {
+      setShowMentions(false);
+    }
+  }, [content]);
+
+  useEffect(() => {
+    if (showMentions && mentionQuery) {
+      supabase.from('profiles').select('username, avatar_url').ilike('username', `${mentionQuery}%`).limit(5)
+        .then(({ data }) => setMentionResults(data || []));
+    }
+  }, [mentionQuery, showMentions]);
+
+  const insertMention = (username) => {
+    const parts = content.split(' ');
+    parts.pop();
+    setContent(parts.join(' ') + (parts.length > 0 ? ' ' : '') + '@' + username + ' ');
+    setShowMentions(false);
+  };
+
   const handlePost = async () => {
     if (!content.trim() && mediaFiles.length === 0) return;
     setPosting(true);
@@ -144,8 +172,18 @@ function CreatePost() {
     <div className="card" style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: 12 }}>
         {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="avatar" /> : <div className="avatar avatar-placeholder">{getInitials(profile?.username)}</div>}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, position: 'relative' }}>
           <textarea className="input textarea" placeholder="What's happening?" value={content} onChange={(e) => setContent(e.target.value)} style={{ border: 'none', background: 'transparent', resize: 'none', minHeight: 60, padding: 0, fontSize: 15 }} />
+          {showMentions && mentionResults.length > 0 && (
+            <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', background: 'var(--bg-elevated)' }}>
+              {mentionResults.map(u => (
+                <button key={u.username} className="dropdown-item" onClick={() => insertMention(u.username)} style={{ gap: 10, padding: '8px 12px' }}>
+                  {u.avatar_url ? <img src={u.avatar_url} className="avatar avatar-sm" alt="" /> : <div className="avatar avatar-sm avatar-placeholder">{getInitials(u.username)}</div>}
+                  <span style={{ fontWeight: 600 }}>@{u.username}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {mediaPreviews.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: mediaPreviews.length > 1 ? '1fr 1fr' : '1fr', gap: 8, marginTop: 8 }}>
               {mediaPreviews.map((url, i) => (
@@ -180,6 +218,18 @@ function PostCard({ post, currentUserId }) {
   const saved = post.saved_posts?.some(s => s.user_id === currentUserId);
   const author = post.profiles;
 
+  const renderContent = (content) => {
+    if (!content) return null;
+    const parts = content.split(/(@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        const username = part.slice(1);
+        return <Link key={i} href={`/profile/${username}`} style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>{part}</Link>;
+      }
+      return part;
+    });
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', gap: 12 }}>
@@ -204,7 +254,7 @@ function PostCard({ post, currentUserId }) {
             </div>
           </div>
 
-          {post.content && <p style={{ margin: '12px 0', fontSize: 15, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{post.content}</p>}
+          {post.content && <p style={{ margin: '12px 0', fontSize: 15, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{renderContent(post.content)}</p>}
           {post.media_urls?.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: post.media_urls.length > 1 ? '1fr 1fr' : '1fr', gap: 4, marginTop: 8, borderRadius: 16, overflow: 'hidden' }}>
               {post.media_urls.map((url, i) => (

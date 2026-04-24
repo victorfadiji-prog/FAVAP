@@ -3,16 +3,22 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { supabase } from '@/lib/supabase';
 import { timeAgo, getInitials } from '@/lib/utils';
-import { Bell, Heart, MessageCircle, UserPlus, Repeat2, Play, Users, Check, CheckCheck } from 'lucide-react';
+import { Bell, Heart, MessageCircle, UserPlus, Repeat2, Play, Users, Check, CheckCheck, Settings, X, Mail, Smartphone, Volume2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 
 const typeIcons = { like: Heart, comment: MessageCircle, follow: UserPlus, repost: Repeat2, mention: MessageCircle, message: MessageCircle, subscribe: Play, server_invite: Users };
 const typeColors = { like: 'var(--accent)', comment: 'var(--primary)', follow: 'var(--success)', repost: 'var(--warning)', mention: 'var(--primary)', message: 'var(--primary)', subscribe: 'var(--accent)', server_invite: 'var(--success)' };
 
 export default function NotificationsPage() {
-  const { profile } = useAuthStore();
+  const { profile, updateProfile } = useAuthStore();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const [notifSettings, setNotifSettings] = useState(profile?.notification_settings || {
+    email: true, push: true, mentions: true, messages: true, likes: true, sounds: true
+  });
 
   useEffect(() => {
     if (!profile) return;
@@ -43,12 +49,49 @@ export default function NotificationsPage() {
           <Bell size={24} style={{ color: 'var(--primary)' }} /> Notifications
           {unread > 0 && <span className="badge badge-accent" style={{ fontSize: 12 }}>{unread}</span>}
         </h1>
-        {unread > 0 && (
-          <button className="btn btn-ghost" onClick={markAllRead} style={{ fontSize: 13 }}>
-            <CheckCheck size={16} /> Mark all read
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost btn-icon" onClick={() => setShowSettings(true)}><Settings size={20} /></button>
+          {unread > 0 && (
+            <button className="btn btn-ghost" onClick={markAllRead} style={{ fontSize: 13 }}>
+              <CheckCheck size={16} /> Mark all read
+            </button>
+          )}
+        </div>
       </div>
+
+      <AnimatePresence>
+        {showSettings && (
+          <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 18 }}>Notification Settings</h2>
+                <button className="btn btn-ghost btn-icon" onClick={() => setShowSettings(false)}><X size={20} /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {[
+                  { id: 'messages', label: 'Direct Messages', icon: MessageCircle },
+                  { id: 'mentions', label: 'Mentions & Replies', icon: Bell },
+                  { id: 'likes', label: 'Likes & Reactions', icon: Heart },
+                  { id: 'sounds', label: 'Sound Alerts', icon: Volume2 }
+                ].map(item => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <item.icon size={18} color="var(--text-secondary)" />
+                      <span style={{ fontSize: 14, fontWeight: 500 }}>{item.label}</span>
+                    </div>
+                    <input type="checkbox" checked={notifSettings[item.id]} onChange={async (e) => {
+                      const updated = { ...notifSettings, [item.id]: e.target.checked };
+                      setNotifSettings(updated);
+                      await updateProfile({ notification_settings: updated });
+                    }} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
+                  </div>
+                ))}
+              </div>
+              <button className="btn btn-primary" onClick={() => setShowSettings(false)} style={{ width: '100%', marginTop: 24 }}>Done</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         [...Array(5)].map((_, i) => (

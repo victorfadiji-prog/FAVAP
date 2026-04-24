@@ -23,10 +23,10 @@ const formatDuration = (s) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const playSound = (type) => {
+const playSound = (type, customUrl = null) => {
   const sounds = {
     message: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
-    ringtone: 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3',
+    ringtone: customUrl || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3',
     end: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'
   };
   const audio = new Audio(sounds[type]);
@@ -58,10 +58,10 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
   const ringtoneRef = useRef(null);
 
   useEffect(() => {
-    if (isIncoming && !isConnected) ringtoneRef.current = playSound('ringtone');
+    if (isIncoming && !isConnected) ringtoneRef.current = playSound('ringtone', profile?.ringtone_url);
     else ringtoneRef.current?.pause();
     return () => ringtoneRef.current?.pause();
-  }, [isIncoming, isConnected]);
+  }, [isIncoming, isConnected, profile?.ringtone_url]);
 
   useEffect(() => {
     let interval;
@@ -314,11 +314,13 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
   const { messages, fetchMessages, sendMessage, addMessage } = useChatStore();
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [attachment, setAttachment] = useState(null);
   const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
 
   useEffect(() => { if (conversation?.id) fetchMessages(conversation.id); }, [conversation?.id, fetchMessages]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, attachment]);
   
   useEffect(() => {
     if (!conversation?.id) return;
@@ -326,17 +328,70 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversation.id}` },
         async (payload) => {
           const { data } = await supabase.from('messages').select('*, profiles:sender_id(*)').eq('id', payload.new.id).single();
-          if (data && data.sender_id !== profile?.id) { addMessage(data); playSound('message'); }
+          if (data && data.sender_id !== profile?.id) { 
+            addMessage(data); 
+            if (profile?.notification_settings?.sounds !== false) {
+              playSound('message'); 
+            }
+          }
         }
       ).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [conversation?.id, profile?.id, addMessage]);
 
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Check file size (limit to 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('File too large (max 50MB)');
+      return;
+    }
+
+    setAttachment({
+      file,
+      preview: URL.createObjectURL(file),
+      type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file'
+    });
+  };
+
   const handleSend = async () => { 
-    if (!text.trim()) return; 
-    await sendMessage({ conversation_id: conversation.id, sender_id: profile.id, content: text.trim(), type: 'text' }); 
+    if (!text.trim() && !attachment) return; 
+    
+    setUploading(true);
+    let mediaUrl = null;
+    let messageType = 'text';
+
+    if (attachment) {
+      const ext = attachment.file.name.split('.').pop();
+      const path = `chats/${conversation.id}/${Date.now()}.${ext}`;
+      const { data, error } = await supabase.storage.from('media').upload(path, attachment.file);
+      
+      if (error) {
+        toast.error('Failed to upload file');
+        setUploading(false);
+        return;
+      }
+      
+      const { data: urlData } = supabase.storage.from('media').getPublicUrl(data.path);
+      mediaUrl = urlData.publicUrl;
+      messageType = attachment.type;
+    }
+
+    await sendMessage({ 
+      conversation_id: conversation.id, 
+      sender_id: profile.id, 
+      content: text.trim(), 
+      type: messageType,
+      media_url: mediaUrl,
+      file_name: attachment?.file.name
+    }); 
+
     setText(''); 
+    setAttachment(null);
     setShowEmoji(false);
+    setUploading(false);
   };
 
   const onEmojiClick = (emojiData) => {
@@ -356,9 +411,42 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
         <button className="btn btn-ghost btn-icon" onClick={forceEndAllCalls} title="Reset Calls" style={{ color: 'var(--error)' }}><AlertCircle size={20} /></button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {messages.map(msg => (
-          <div key={msg.id} style={{ alignSelf: msg.sender_id === profile.id ? 'flex-end' : 'flex-start', background: msg.sender_id === profile.id ? 'var(--primary)' : 'var(--bg-elevated)', padding: '10px 16px', borderRadius: 16, color: msg.sender_id === profile.id ? 'white' : 'inherit', maxWidth: '70%' }}>{msg.content}</div>
-        ))}
+        {messages.map(msg => {
+          const isMe = msg.sender_id === profile.id;
+          return (
+            <div key={msg.id} style={{ 
+              alignSelf: isMe ? 'flex-end' : 'flex-start', 
+              background: isMe ? 'var(--primary)' : 'var(--bg-elevated)', 
+              padding: msg.type === 'text' ? '10px 16px' : '4px', 
+              borderRadius: 16, 
+              color: isMe ? 'white' : 'inherit', 
+              maxWidth: '70%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+              {msg.type === 'image' && (
+                <img src={msg.media_url} alt="" style={{ maxWidth: '100%', borderRadius: 12, display: 'block' }} />
+              )}
+              {msg.type === 'video' && (
+                <video src={msg.media_url} controls style={{ maxWidth: '100%', borderRadius: 12, display: 'block' }} />
+              )}
+              {msg.type === 'file' && (
+                <a href={msg.media_url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', textDecoration: 'none', color: 'inherit' }}>
+                  <Paperclip size={16} />
+                  <span style={{ fontSize: 13, textDecoration: 'underline' }}>{msg.file_name || 'Download File'}</span>
+                </a>
+              )}
+              {msg.content && <div style={{ padding: msg.type !== 'text' ? '8px 12px' : 0 }}>{msg.content}</div>}
+            </div>
+          );
+        })}
+        {attachment && (
+          <div style={{ alignSelf: 'flex-end', opacity: 0.6, position: 'relative' }}>
+            {attachment.type === 'image' && <img src={attachment.preview} alt="" style={{ width: 100, height: 100, borderRadius: 12, objectFit: 'cover' }} />}
+            {attachment.type === 'video' && <div style={{ width: 100, height: 100, borderRadius: 12, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Video size={24} color="white" /></div>}
+            {attachment.type === 'file' && <div style={{ padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 12 }}><Paperclip size={16} /> {attachment.file.name}</div>}
+            <button onClick={() => setAttachment(null)} style={{ position: 'absolute', top: -8, right: -8, background: 'var(--error)', color: 'white', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}>×</button>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
       <div style={{ padding: '20px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', position: 'relative' }}>
@@ -368,18 +456,21 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
           </div>
         )}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="btn btn-ghost btn-icon" onClick={() => fileInputRef.current?.click()}><Paperclip size={20} /></button>
-          <input type="file" ref={fileInputRef} style={{ display: 'none' }} />
-          <button className="btn btn-ghost btn-icon" onClick={() => setShowEmoji(!showEmoji)}><Smile size={20} /></button>
+          <button className="btn btn-ghost btn-icon" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Paperclip size={20} /></button>
+          <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
+          <button className="btn btn-ghost btn-icon" onClick={() => setShowEmoji(!showEmoji)} disabled={uploading}><Smile size={20} /></button>
           <input 
             className="input" 
-            placeholder="Type a message..." 
+            placeholder={uploading ? "Uploading..." : "Type a message..."} 
             value={text} 
             onChange={e => setText(e.target.value)} 
             onKeyDown={e => e.key === 'Enter' && handleSend()} 
             style={{ background: 'var(--bg-elevated)', border: 'none' }} 
+            disabled={uploading}
           />
-          <button className="btn btn-primary btn-icon" onClick={handleSend} style={{ width: 44, height: 44, borderRadius: '50%' }}><Send size={20} /></button>
+          <button className="btn btn-primary btn-icon" onClick={handleSend} disabled={uploading || (!text.trim() && !attachment)} style={{ width: 44, height: 44, borderRadius: '50%' }}>
+            {uploading ? <RefreshCw className="animate-spin" size={20} /> : <Send size={20} />}
+          </button>
         </div>
       </div>
     </div>
@@ -405,7 +496,12 @@ export default function MessagesPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calls' }, async (payload) => {
         if (payload.eventType === 'INSERT' && payload.new.receiver_id === profile.id && payload.new.status === 'ringing') {
           const { data } = await supabase.from('calls').select('*, caller:caller_id(*)').eq('id', payload.new.id).single();
-          if (data) { setActiveCall(data); playSound('ringtone'); }
+          if (data) { 
+            setActiveCall(data); 
+            if (profile?.notification_settings?.sounds !== false) {
+              playSound('ringtone', profile?.ringtone_url);
+            }
+          }
         } else if (payload.eventType === 'UPDATE') {
           if (activeCall && payload.new.id === activeCall.id) {
             if (payload.new.status === 'accepted') setActiveCall(prev => ({ ...prev, status: 'accepted' }));

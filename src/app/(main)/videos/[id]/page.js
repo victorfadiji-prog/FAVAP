@@ -48,6 +48,9 @@ export default function VideoDetailPage() {
   if (!currentVideo) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner spinner-lg" /></div>;
 
   const liked = currentVideo.video_likes?.some(l => l.user_id === profile?.id && l.is_like);
+  const disliked = currentVideo.video_likes?.some(l => l.user_id === profile?.id && !l.is_like);
+  const likeCount = currentVideo.video_likes?.filter(l => l.is_like).length || 0;
+  const dislikeCount = currentVideo.video_likes?.filter(l => !l.is_like).length || 0;
   const author = currentVideo.profiles;
 
   return (
@@ -79,10 +82,12 @@ export default function VideoDetailPage() {
             </button>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button className="btn btn-secondary" onClick={() => toggleLike(id, profile?.id)} style={{ fontSize: 13, color: liked ? 'var(--primary)' : undefined }}>
-              <ThumbsUp size={16} fill={liked ? 'currentColor' : 'none'} /> {formatCount(currentVideo.like_count)}
+            <button className="btn btn-secondary" onClick={() => toggleLike(id, profile?.id, true)} style={{ fontSize: 13, color: liked ? 'var(--primary)' : undefined }}>
+              <ThumbsUp size={16} fill={liked ? 'currentColor' : 'none'} /> {formatCount(likeCount)}
             </button>
-            <button className="btn btn-secondary" style={{ fontSize: 13 }}><ThumbsDown size={16} /></button>
+            <button className="btn btn-secondary" onClick={() => toggleLike(id, profile?.id, false)} style={{ fontSize: 13, color: disliked ? 'var(--error)' : undefined }}>
+              <ThumbsDown size={16} fill={disliked ? 'currentColor' : 'none'} /> {formatCount(dislikeCount)}
+            </button>
             <button className="btn btn-secondary" style={{ fontSize: 13 }}><Share size={16} /> Share</button>
             <button className="btn btn-secondary" style={{ fontSize: 13 }}><Bookmark size={16} /> Save</button>
           </div>

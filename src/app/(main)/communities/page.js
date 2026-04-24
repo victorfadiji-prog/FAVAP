@@ -14,6 +14,8 @@ function CreateServerModal({ onClose }) {
   const { createServer } = useCommunityStore();
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const [category, setCategory] = useState('General');
+  const [website, setWebsite] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [creating, setCreating] = useState(false);
 
@@ -25,6 +27,8 @@ function CreateServerModal({ onClose }) {
       description: desc.trim(), 
       owner_id: profile.id,
       is_public: isPublic,
+      category: category,
+      website_url: website.trim(),
       icon_url: `https://api.dicebear.com/7.x/shapes/svg?seed=${name}`,
     });
     if (error) toast.error('Failed to create server');
@@ -43,14 +47,22 @@ function CreateServerModal({ onClose }) {
             <input className="input" placeholder="My Awesome Server" value={name} onChange={e => setName(e.target.value)} autoFocus />
           </div>
           <div>
-            <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Description</label>
-            <textarea className="input textarea" placeholder="What's this server about?" value={desc} onChange={e => setDesc(e.target.value)} />
+            <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Category</label>
+            <select className="input" value={category} onChange={e => setCategory(e.target.value)}>
+              {['General', 'Business', 'Education', 'Gaming', 'Technology', 'Entertainment', 'Other'].map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Website (Optional)</label>
+            <input className="input" placeholder="https://example.com" value={website} onChange={e => setWebsite(e.target.value)} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className={`btn ${isPublic ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setIsPublic(true)} style={{ flex: 1 }}>
+            <button className={`btn ${isPublic ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setIsPublic(true)} style={{ flex: 1, gap: 8 }}>
               <Globe size={16} /> Public
             </button>
-            <button className={`btn ${!isPublic ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setIsPublic(false)} style={{ flex: 1 }}>
+            <button className={`btn ${!isPublic ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setIsPublic(false)} style={{ flex: 1, gap: 8 }}>
               <Lock size={16} /> Private
             </button>
           </div>
@@ -84,8 +96,9 @@ function ServerCard({ server, isMember, onJoin }) {
           <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{server.name}</h3>
           {server.description && <p style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.description}</p>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
-            <span className="badge badge-primary"><Users size={10} /> {formatCount(server.member_count || 0)} members</span>
-            <span className="badge badge-success">{server.is_public ? 'Public' : 'Private'}</span>
+            <span className="badge badge-primary"><Users size={10} /> {formatCount(server.member_count || 0)}</span>
+            <span className="badge badge-secondary">{server.category || 'General'}</span>
+            {server.is_verified && <span className="badge badge-success" title="Verified Organization"><Crown size={10} /></span>}
           </div>
         </div>
         

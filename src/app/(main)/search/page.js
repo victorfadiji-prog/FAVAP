@@ -20,10 +20,10 @@ function SearchContent() {
     if (!term.trim()) return;
     setLoading(true);
     const [users, posts, videos, servers] = await Promise.all([
-      supabase.from('profiles').select('*').or(`username.ilike.%${term}%,display_name.ilike.%${term}%`).limit(10),
+      supabase.from('profiles').select('*').or(`username.ilike.%${term}%,display_name.ilike.%${term}%,bio.ilike.%${term}%`).limit(10),
       supabase.from('posts').select('*, profiles:user_id(id, username, avatar_url)').ilike('content', `%${term}%`).limit(10),
-      supabase.from('videos').select('*, profiles:user_id(id, username, avatar_url)').ilike('title', `%${term}%`).eq('status', 'published').limit(10),
-      supabase.from('servers').select('*').ilike('name', `%${term}%`).eq('is_public', true).limit(10),
+      supabase.from('videos').select('*, profiles:user_id(id, username, avatar_url)').or(`title.ilike.%${term}%,description.ilike.%${term}%`).in('status', ['published', 'active']).limit(10),
+      supabase.from('servers').select('*').or(`name.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`).eq('is_public', true).limit(10),
     ]);
     setResults({ users: users.data || [], posts: posts.data || [], videos: videos.data || [], servers: servers.data || [] });
     setLoading(false);
@@ -49,7 +49,11 @@ function SearchContent() {
       {(tab === 'all' || tab === 'users') && results.users.map(u => (
         <Link key={u.id} href={`/profile/${u.username}`} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, textDecoration: 'none', color: 'var(--text-primary)' }}>
           {u.avatar_url ? <img src={u.avatar_url} alt="" className="avatar" /> : <div className="avatar avatar-placeholder">{getInitials(u.username)}</div>}
-          <div><div style={{ fontWeight: 600, fontSize: 14 }}>{u.display_name || u.username}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>@{u.username}</div></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{u.display_name || u.username}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>@{u.username}</div>
+            {u.bio && <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.bio}</p>}
+          </div>
         </Link>
       ))}
 
@@ -75,10 +79,13 @@ function SearchContent() {
 
       {(tab === 'all' || tab === 'servers') && results.servers.map(s => (
         <Link key={s.id} href={`/communities/${s.id}`} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, textDecoration: 'none', color: 'var(--text-primary)' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Users size={18} color="white" />
           </div>
-          <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatCount(s.member_count)} members</div></div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.category || 'Community'} · {formatCount(s.member_count)} members</div>
+          </div>
         </Link>
       ))}
     </div>
