@@ -570,3 +570,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.calls;
+-- Enable Realtime for specific tables
+-- Run these in your Supabase SQL Editor to activate live updates
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_members;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.calls;
