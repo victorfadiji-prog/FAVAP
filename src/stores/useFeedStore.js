@@ -15,15 +15,17 @@ export const useFeedStore = create((set, get) => ({
       .order('created_at', { ascending: false })
       .range(page * limit, (page + 1) * limit - 1);
     
-    if (!error) {
-      set((s) => ({
-        posts: page === 0 ? data : [...s.posts, ...data],
-        hasMore: data.length === limit,
-        loading: false,
-      }));
-    } else {
+    if (error) {
+      console.error('Error fetching posts:', error);
       set({ loading: false });
+      return;
     }
+
+    set((s) => ({
+      posts: page === 0 ? data : [...s.posts, ...data],
+      hasMore: (data?.length || 0) === limit,
+      loading: false,
+    }));
   },
 
   createPost: async (post) => {
@@ -32,7 +34,11 @@ export const useFeedStore = create((set, get) => ({
       .insert(post)
       .select('*, profiles:user_id(id, username, avatar_url)')
       .single();
-    if (!error) set((s) => ({ posts: [data, ...s.posts] }));
+    if (error) {
+      console.error('Error creating post:', error);
+      return { data: null, error };
+    }
+    set((s) => ({ posts: [data, ...s.posts] }));
     return { data, error };
   },
 

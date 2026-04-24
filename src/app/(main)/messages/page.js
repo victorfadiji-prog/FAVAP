@@ -621,7 +621,12 @@ export default function MessagesPage() {
   
   const handleStartCall = async (type, targetUser) => {
     if (activeCall) { toast.error('Call in progress'); return; }
-    const { data } = await supabase.from('calls').insert({ caller_id: profile.id, receiver_id: targetUser.id, type, status: 'ringing', started_at: new Date() }).select('*, receiver:receiver_id(*)').single();
+    const { data } = await supabase.from('calls').insert({ 
+      caller_id: profile.id, 
+      receiver_id: targetUser.id, 
+      type, 
+      status: 'ringing' 
+    }).select('*, receiver:receiver_id(*)').single();
     if (data) setActiveCall(data);
   };
   const handleAcceptCall = async () => { if (!activeCall) return; await supabase.from('calls').update({ status: 'accepted' }).eq('id', activeCall.id); setActiveCall(prev => ({ ...prev, status: 'accepted' })); };
