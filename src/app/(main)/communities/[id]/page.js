@@ -8,7 +8,7 @@ import {
   Hash, Volume2, Users, Settings, Plus, Send, 
   MoreVertical, Shield, Crown, LogOut, ArrowLeft,
   X, Image as ImageIcon, Smile, Mic, MicOff, Video,
-  Paperclip, Trash2, Edit2, ShieldAlert
+  Paperclip, Trash2, Edit2, ShieldAlert, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
