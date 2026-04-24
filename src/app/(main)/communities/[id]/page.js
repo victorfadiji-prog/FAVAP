@@ -171,6 +171,47 @@ export default function ServerDetailPage() {
     }
   };
 
+  const [preview, setPreview] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  const handleSelectFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (file.type.startsWith('image')) setPreview(URL.createObjectURL(file));
+    else setPreview({ name: file.name, type: 'file' });
+  };
+
+  const handleSendWithAttachment = async () => {
+    if (!text.trim() && !selectedFile) return;
+    
+    let mediaUrl = null;
+    let fileName = null;
+    let type = 'text';
+
+    if (selectedFile) {
+      const loadingToast = toast.loading('Uploading attachment...');
+      try {
+        const ext = selectedFile.name.split('.').pop();
+        const path = `channels/${activeChannel.id}/${Date.now()}.${ext}`;
+        const { data, error } = await supabase.storage.from('media').upload(path, selectedFile);
+        if (error) throw error;
+        const { data: urlData } = supabase.storage.from('media').getPublicUrl(data.path);
+        mediaUrl = urlData.publicUrl;
+        fileName = selectedFile.name;
+        type = selectedFile.type.startsWith('image') ? 'image' : 'file';
+        toast.success('Uploaded!', { id: loadingToast });
+      } catch (err) {
+        toast.error('Upload failed', { id: loadingToast });
+        return;
+      }
+    }
+
+    await handleSend(text, type, mediaUrl, fileName);
+    setPreview(null);
+    setSelectedFile(null);
+  };
+
   const handleJoin = async () => {
     const { error } = await joinServer(serverId, profile.id);
     if (!error) { toast.success('Joined server!'); fetchServer(serverId); }
@@ -253,14 +294,32 @@ export default function ServerDetailPage() {
             </div>
 
             <div style={{ padding: '0 20px 20px', position: 'relative' }}>
+              <AnimatePresence>
+                {preview && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} style={{ background: 'var(--bg-elevated)', padding: '12px', borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {typeof preview === 'string' ? (
+                      <img src={preview} style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover' }} alt="" />
+                    ) : (
+                      <div style={{ width: 60, height: 60, borderRadius: 8, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Paperclip size={24} /></div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedFile?.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ready to send</div>
+                    </div>
+                    <button className="btn btn-ghost btn-icon" onClick={() => { setPreview(null); setSelectedFile(null); }}><X size={18} /></button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
               {showEmoji && <div style={{ position: 'absolute', bottom: '100%', right: 20, zIndex: 100 }}><EmojiPicker onEmojiClick={e => setText(t => t + e.emoji)} theme="dark" /></div>}
-              <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: preview ? '0 0 8px 8px' : 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button className="btn btn-ghost btn-icon" onClick={() => fileInputRef.current?.click()}><Plus size={20} /></button>
-                <input className="input" style={{ background: 'transparent', border: 'none', flex: 1, padding: 0 }} placeholder={`Message #${activeChannel?.name}`} value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
+                <input className="input" style={{ background: 'transparent', border: 'none', flex: 1, padding: 0 }} placeholder={`Message #${activeChannel?.name}`} value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendWithAttachment()} />
                 <button className="btn btn-ghost btn-icon" onClick={() => setShowEmoji(!showEmoji)}><Smile size={20} /></button>
-                <button className="btn btn-primary btn-icon" onClick={() => handleSend()} style={{ width: 36, height: 36 }}><Send size={18} /></button>
+                <button className="btn btn-primary btn-icon" onClick={handleSendWithAttachment} disabled={!text.trim() && !selectedFile} style={{ width: 36, height: 36 }}><Send size={18} /></button>
               </div>
-              <input type="file" ref={fileInputRef} hidden onChange={handleFile} />
+              <input type="file" ref={fileInputRef} hidden onChange={handleSelectFile} />
             </div>
           </>
         ) : (

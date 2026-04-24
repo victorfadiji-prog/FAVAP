@@ -66,9 +66,9 @@ export const useCommunityStore = create((set, get) => ({
   joinServer: async (serverId, userId) => {
     const { data, error } = await supabase.from('server_members').insert({ server_id: serverId, user_id: userId, role: 'member' }).select().single();
     if (!error) {
-      // Update local state if needed or just refetch
-      const { fetchServers } = get();
+      const { fetchServers, fetchServer } = get();
       await fetchServers(userId);
+      await fetchServer(serverId);
     }
     return { data, error };
   },

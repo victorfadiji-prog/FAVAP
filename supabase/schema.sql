@@ -288,6 +288,7 @@ CREATE TABLE public.channel_messages (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   content TEXT DEFAULT '',
   media_url TEXT,
+  file_name TEXT,
   type TEXT DEFAULT 'text' CHECK (type IN ('text', 'image', 'video', 'file', 'system')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
