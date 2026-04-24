@@ -11,7 +11,7 @@ export const useFeedStore = create((set, get) => ({
     const limit = 20;
     const { data, error } = await supabase
       .from('posts')
-      .select('*, profiles:user_id(id, username, avatar_url), post_likes(user_id), post_comments(id, content, created_at, profiles:user_id(username, avatar_url)), saved_posts(user_id)')
+      .select('*, profiles(id, username, avatar_url)')
       .order('created_at', { ascending: false })
       .range(page * limit, (page + 1) * limit - 1);
     
@@ -32,7 +32,7 @@ export const useFeedStore = create((set, get) => ({
     const { data, error } = await supabase
       .from('posts')
       .insert(post)
-      .select('*, profiles:user_id(id, username, avatar_url)')
+      .select('*, profiles(id, username, avatar_url)')
       .single();
     if (error) {
       console.error('Error creating post:', error);
