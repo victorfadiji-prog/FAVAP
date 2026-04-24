@@ -290,6 +290,8 @@ export default function SettingsPage() {
                           </div>
                         ))}
                       </div>
+                    </section>
+
                     <section>
                       <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase' }}>Custom Ringtone</h3>
                       <div className="card" style={{ background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', padding: 24, textAlign: 'center' }}>
