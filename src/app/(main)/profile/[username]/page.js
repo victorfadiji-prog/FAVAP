@@ -113,9 +113,14 @@ export default function ProfilePage() {
           </div>
           <div style={{ display: 'flex', gap: 8, paddingBottom: 8 }}>
             {isMe ? (
-              <button className="btn btn-secondary" onClick={() => { setEditing(!editing); setEditForm({ display_name: user.display_name, bio: user.bio, website: user.website, location: user.location }); }}>
-                <Edit3 size={14} /> Edit Profile
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary" onClick={() => { setEditing(!editing); setEditForm({ display_name: user.display_name, bio: user.bio, website: user.website, location: user.location }); }}>
+                  <Edit3 size={14} /> Edit Profile
+                </button>
+                <Link href="/settings" className="btn btn-secondary btn-icon" style={{ borderRadius: '50%', width: 36, height: 36 }}>
+                  <Settings size={18} />
+                </Link>
+              </div>
             ) : (
               <>
                 <button className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}`} onClick={handleFollow}>
