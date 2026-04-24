@@ -107,6 +107,7 @@ export default function ServerDetailPage() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -221,12 +222,28 @@ export default function ServerDetailPage() {
   if (!activeServer) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}><div className="spinner" /></div>;
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - var(--topbar-height))', overflow: 'hidden' }}>
-      {/* Sidebar */}
-      <div style={{ width: 260, background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - var(--topbar-height))', overflow: 'hidden', position: 'relative' }}>
+      {/* Sidebar - responsive behavior */}
+      <div 
+        className={`${!mobileSidebarOpen ? 'hide-mobile' : ''}`}
+        style={{ 
+          width: 260, 
+          background: 'var(--bg-secondary)', 
+          borderRight: '1px solid var(--border-color)', 
+          display: 'flex', 
+          flexDirection: 'column',
+          position: mobileSidebarOpen ? 'absolute' : 'relative',
+          inset: mobileSidebarOpen ? '0 auto 0 0' : 'unset',
+          zIndex: 100,
+          boxShadow: mobileSidebarOpen ? 'var(--shadow-lg)' : 'none'
+        }}
+      >
         <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => isAdmin && setShowSettings(true)}>
           <h2 style={{ fontSize: 16, fontWeight: 800 }}>{activeServer.name}</h2>
-          {isAdmin ? <Settings size={18} /> : <MoreVertical size={18} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isAdmin ? <Settings size={18} /> : <MoreVertical size={18} />}
+            <button className="btn btn-ghost btn-icon hide-desktop" onClick={() => setMobileSidebarOpen(false)}><X size={18} /></button>
+          </div>
         </div>
         
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 8px' }}>
@@ -235,7 +252,7 @@ export default function ServerDetailPage() {
             {isAdmin && <Plus size={16} style={{ cursor: 'pointer' }} onClick={() => setShowCreateChannel(true)} />}
           </div>
           {channels.map(ch => (
-            <button key={ch.id} onClick={() => setActiveChannel(ch)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', textAlign: 'left', background: activeChannel?.id === ch.id ? 'var(--bg-elevated)' : 'transparent', color: activeChannel?.id === ch.id ? 'var(--text-primary)' : 'var(--text-muted)', marginBottom: 2 }}>
+            <button key={ch.id} onClick={() => { setActiveChannel(ch); setMobileSidebarOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', textAlign: 'left', background: activeChannel?.id === ch.id ? 'var(--bg-elevated)' : 'transparent', color: activeChannel?.id === ch.id ? 'var(--text-primary)' : 'var(--text-muted)', marginBottom: 2 }}>
               {ch.type === 'text' ? <Hash size={18} /> : <Volume2 size={18} />} {ch.name}
             </button>
           ))}
@@ -256,12 +273,13 @@ export default function ServerDetailPage() {
       </div>
 
       {/* Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}>
-        <div style={{ height: 56, borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 20px', background: 'var(--bg-secondary)', gap: 12 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative', minWidth: 0 }}>
+        <div style={{ height: 56, borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 16px', background: 'var(--bg-secondary)', gap: 12 }}>
+          <button className="btn btn-ghost btn-icon hide-desktop" onClick={() => setMobileSidebarOpen(true)} style={{ marginLeft: -8 }}><Menu size={20} /></button>
           {activeChannel?.type === 'text' ? <Hash size={24} color="var(--text-muted)" /> : <Volume2 size={24} color="var(--text-muted)" />}
-          <h3 style={{ fontSize: 16, fontWeight: 700 }}>{activeChannel?.name}</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeChannel?.name}</h3>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-ghost btn-icon" onClick={() => setShowMembers(!showMembers)}><Users size={20} color={showMembers ? 'var(--primary)' : 'inherit'} /></button>
+          <button className="btn btn-ghost btn-icon hide-mobile" onClick={() => setShowMembers(!showMembers)}><Users size={20} color={showMembers ? 'var(--primary)' : 'inherit'} /></button>
         </div>
 
         {!isMember ? (

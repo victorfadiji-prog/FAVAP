@@ -356,7 +356,8 @@ function ConversationList({ onSelect, activeId, onShowHistory }) {
   const getOtherUser = (c) => c.conversation_members?.find(m => m.user_id !== profile?.id)?.profiles || { username: 'User' };
   const filtered = conversations.filter(c => getOtherUser(c).username?.toLowerCase().includes(search.toLowerCase()));
   return (
-    <div style={{ width: 360, borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+  return (
+    <div className={activeId ? 'hide-mobile' : ''} style={{ width: 360, borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', flexShrink: 0 }}>
       <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 24, fontWeight: 800 }}>Messages</h2>
@@ -394,7 +395,7 @@ function ConversationList({ onSelect, activeId, onShowHistory }) {
   );
 }
 
-function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
+function ChatWindow({ conversation, onStartCall, forceEndAllCalls, onBack }) {
   const { profile } = useAuthStore();
   const { messages, fetchMessages, sendMessage, addMessage } = useChatStore();
   const [text, setText] = useState('');
@@ -483,18 +484,26 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
     setText(prev => prev + emojiData.emoji);
   };
 
-  if (!conversation) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><h3>Select a chat</h3></div>;
-  const otherUser = conversation.conversation_members?.find(m => m.user_id !== profile?.id)?.profiles;
+  if (!conversation) return <div className="hide-mobile" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><h3>Select a chat to start messaging</h3></div>;
+  
+  const otherUser = conversation.conversation_members?.find(m => m.user_id !== profile?.id)?.profiles || { username: 'User' };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 14, background: 'var(--bg-secondary)' }}>
-        <div style={{ fontWeight: 700, fontSize: 18 }}>{otherUser?.username}</div>
-        <div style={{ flex: 1 }} />
-        <button className="btn btn-ghost btn-icon" onClick={() => onStartCall('voice', otherUser)}><Phone size={20} /></button>
-        <button className="btn btn-ghost btn-icon" onClick={() => onStartCall('video', otherUser)}><Video size={20} /></button>
-        <button className="btn btn-ghost btn-icon" onClick={forceEndAllCalls} title="Reset Calls" style={{ color: 'var(--error)' }}><AlertCircle size={20} /></button>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', height: '100%', minWidth: 0 }}>
+      <div style={{ height: 64, borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 16px', background: 'var(--bg-secondary)', gap: 12, position: 'sticky', top: 0, zIndex: 10 }}>
+        <button className="btn btn-ghost btn-icon hide-desktop" onClick={onBack} style={{ marginLeft: -8 }}><ArrowLeft size={20} /></button>
+        {otherUser?.avatar_url ? <img src={otherUser.avatar_url} className="avatar avatar-sm" alt="" /> : <div className="avatar avatar-sm avatar-placeholder">{getInitials(otherUser?.username)}</div>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{otherUser?.username}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Online</div>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="btn btn-ghost btn-icon" onClick={() => onStartCall('voice', otherUser)}><Phone size={20} /></button>
+          <button className="btn btn-ghost btn-icon" onClick={() => onStartCall('video', otherUser)}><Video size={20} /></button>
+          <button className="btn btn-ghost btn-icon hide-mobile" onClick={forceEndAllCalls} title="Reset Calls"><RefreshCw size={18} /></button>
+        </div>
       </div>
+
       <div style={{ flex: 1, overflow: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.map(msg => {
           const isMe = msg.sender_id === profile.id;
@@ -534,6 +543,7 @@ function ChatWindow({ conversation, onStartCall, forceEndAllCalls }) {
         )}
         <div ref={bottomRef} />
       </div>
+
       <div style={{ padding: '20px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', position: 'relative' }}>
         {showEmoji && (
           <div style={{ position: 'absolute', bottom: '80px', left: '20px', zIndex: 100 }}>
@@ -599,7 +609,6 @@ export default function MessagesPage() {
           const { data } = await supabase.from('calls').select('*, caller:caller_id(*)').eq('id', payload.new.id).single();
           if (data) { 
             setActiveCall(data); 
-            // Removed duplicate playSound from here, CallOverlay handles it
           }
         } else if (payload.eventType === 'UPDATE') {
           if (activeCall && payload.new.id === activeCall.id) {
@@ -637,7 +646,7 @@ export default function MessagesPage() {
       <AnimatePresence>{activeCall && <CallOverlay call={activeCall} profile={profile} onEnd={handleEndCall} onAccept={handleAcceptCall} />}</AnimatePresence>
       <AnimatePresence>{showHistory && <CallHistoryModal profileId={profile.id} onClose={() => setShowHistory(false)} />}</AnimatePresence>
       <ConversationList onSelect={setActiveConv} activeId={activeConv?.id} onShowHistory={() => setShowHistory(true)} />
-      <ChatWindow conversation={activeConv} onStartCall={handleStartCall} forceEndAllCalls={forceEndAllCalls} />
+      <ChatWindow conversation={activeConv} onStartCall={handleStartCall} forceEndAllCalls={forceEndAllCalls} onBack={() => setActiveConv(null)} />
     </div>
   );
 }

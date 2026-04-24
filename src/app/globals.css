@@ -424,5 +424,33 @@ h1, h2, h3, h4, h5, h6 {
 .dropdown-item:hover { background: var(--bg-hover); }
 
 /* Responsive layout helpers */
-.hide-mobile { display: none; }
-@media (min-width: 768px) { .hide-mobile { display: flex; } .hide-desktop { display: none; } }
+.hide-mobile { display: none !important; }
+.hide-desktop { display: flex !important; }
+
+@media (min-width: 768px) {
+  .hide-mobile { display: flex !important; }
+  .hide-desktop { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 0px;
+    --topbar-height: 56px;
+    --mobilenav-height: 64px;
+  }
+  
+  .card { padding: 16px; border-radius: var(--radius); }
+  .modal-content { width: 95%; padding: 16px; margin-bottom: var(--mobilenav-height); }
+  
+  /* Typography scaling */
+  h1 { font-size: 24px !important; }
+  h2 { font-size: 20px !important; }
+  h3 { font-size: 18px !important; }
+  
+  /* Mobile-specific container padding */
+  .mobile-container { padding: 12px !important; }
+}
+
+/* Scrollbar hiding for clean mobile looks */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
