@@ -356,7 +356,6 @@ function ConversationList({ onSelect, activeId, onShowHistory }) {
   const getOtherUser = (c) => c.conversation_members?.find(m => m.user_id !== profile?.id)?.profiles || { username: 'User' };
   const filtered = conversations.filter(c => getOtherUser(c).username?.toLowerCase().includes(search.toLowerCase()));
   return (
-  return (
     <div className={activeId ? 'hide-mobile' : ''} style={{ width: 360, borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', flexShrink: 0 }}>
       <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
