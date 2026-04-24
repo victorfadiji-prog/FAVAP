@@ -27,10 +27,11 @@ const playSound = (type, customUrl = null) => {
   const sounds = {
     message: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
     ringtone: customUrl || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3',
+    ringback: 'https://assets.mixkit.co/active_storage/sfx/1350/1350-preview.mp3',
     end: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'
   };
   const audio = new Audio(sounds[type]);
-  if (type === 'ringtone') audio.loop = true;
+  if (type === 'ringtone' || type === 'ringback') audio.loop = true;
   audio.play().catch(() => {});
   return audio;
 };
@@ -58,10 +59,23 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
   const ringtoneRef = useRef(null);
 
   useEffect(() => {
-    if (isIncoming && !isConnected) ringtoneRef.current = playSound('ringtone', profile?.ringtone_url);
-    else ringtoneRef.current?.pause();
-    return () => ringtoneRef.current?.pause();
-  }, [isIncoming, isConnected, profile?.ringtone_url]);
+    // Ringtone for receiver
+    if (isIncoming && !isConnected) {
+      ringtoneRef.current = playSound('ringtone', profile?.ringtone_url);
+    } 
+    // Ringback for caller
+    else if (isCaller && !isConnected) {
+      ringtoneRef.current = playSound('ringback');
+    }
+    else {
+      ringtoneRef.current?.pause();
+      ringtoneRef.current = null;
+    }
+    return () => {
+      ringtoneRef.current?.pause();
+      ringtoneRef.current = null;
+    };
+  }, [isIncoming, isCaller, isConnected, profile?.ringtone_url]);
 
   useEffect(() => {
     let interval;
@@ -88,7 +102,10 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
     pc.onicecandidate = (e) => { if (e.candidate) sendSignal({ type: 'candidate', candidate: e.candidate }); };
-    pc.ontrack = (e) => { setRemoteStream(e.streams[0]); if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
+    pc.ontrack = (e) => { 
+      console.log('Got remote track:', e.streams[0]);
+      setRemoteStream(e.streams[0]); 
+    };
     pc.onconnectionstatechange = () => setConnState(pc.connectionState);
 
     if (isCaller) {
@@ -98,6 +115,12 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
     }
   }, [isCaller, sendSignal]);
 
+  useEffect(() => {
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
   const initMedia = useCallback(async (mode = 'user') => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -106,11 +129,15 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
       });
       setLocalStream(stream);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-      if (isConnected || (!isIncoming && call.status === 'ringing')) setupPeer(stream);
+      
+      // If we are already connected or we are the caller ringing, start setup
+      if (isConnected || (isCaller && call.status === 'ringing')) {
+        setupPeer(stream);
+      }
     } catch (err) {
       toast.error('Camera/Mic access denied');
     }
-  }, [call.type, isConnected, isIncoming, call.status, setupPeer]);
+  }, [call.type, isConnected, isCaller, call.status, setupPeer]);
 
   useEffect(() => {
     initMedia(facingMode);
@@ -159,53 +186,111 @@ function CallOverlay({ call, profile, onEnd, onAccept }) {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column', color: 'white' }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column', color: 'white', overflow: 'hidden' }}>
+      {/* BACKGROUND / REMOTE VIDEO */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {isConnected && call.type === 'video' && remoteStream ? (
           <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 160, height: 160, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, marginBottom: 20 }}>
-              {otherUser?.avatar_url ? <img src={otherUser.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt="" /> : getInitials(otherUser?.username)}
-            </div>
-            <p style={{ opacity: 0.5 }}>{isConnected ? (connState === 'connected' ? 'Connected' : 'Connecting media...') : isIncoming ? 'Incoming Call...' : 'Ringing...'}</p>
+          <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
+            <div style={{ position: 'absolute', inset: -100, background: otherUser?.avatar_url ? `url(${otherUser.avatar_url})` : 'var(--primary)', filter: 'blur(80px) opacity(0.3)', zIndex: -1 }} />
+            <motion.div 
+              animate={!isConnected ? { scale: [1, 1.05, 1] } : {}}
+              transition={{ repeat: Infinity, duration: 2 }}
+              style={{ width: 160, height: 160, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, marginBottom: 24, boxShadow: '0 0 40px rgba(0,0,0,0.5)', overflow: 'hidden' }}
+            >
+              {otherUser?.avatar_url ? <img src={otherUser.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : getInitials(otherUser?.username)}
+            </motion.div>
+            <h2 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{otherUser?.username}</h2>
+            <p style={{ opacity: 0.7, fontSize: 16, fontWeight: 500 }}>
+              {isConnected ? (connState === 'connected' ? formatDuration(timer) : 'Connecting...') : isIncoming ? 'Incoming video call...' : 'Ringing...'}
+            </p>
           </div>
         )}
       </div>
 
+      {/* LOCAL VIDEO PREVIEW (PIP) */}
       {call.type === 'video' && videoOn && (
-        <motion.div drag dragConstraints={{ left: 0, right: window.innerWidth - 180, top: 0, bottom: window.innerHeight - 240 }} style={{ position: 'absolute', bottom: 120, right: 40, width: 140, height: 200, background: '#222', borderRadius: 16, overflow: 'hidden', zIndex: 10, border: '2px solid rgba(255,255,255,0.2)', cursor: 'grab' }}>
+        <motion.div 
+          drag 
+          dragConstraints={{ left: 20, right: 20, top: 20, bottom: 20 }} 
+          style={{ position: 'absolute', top: 40, right: 20, width: 120, height: 180, background: '#222', borderRadius: 16, overflow: 'hidden', zIndex: 10, border: '2px solid rgba(255,255,255,0.2)', cursor: 'grab', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+        >
           <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }} />
         </motion.div>
       )}
 
-      <div style={{ position: 'relative', zIndex: 5, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: 40, background: 'linear-gradient(to bottom, rgba(0,0,0,0.4), transparent, rgba(0,0,0,0.7))' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.5)', padding: '6px 12px', borderRadius: 20, fontSize: 12 }}>
-            <Signal size={14} color={connState === 'connected' ? '#22c55e' : '#eab308'} /> {connState}
-          </div>
-          <div style={{ textAlign: 'center' }}><h2 style={{ fontSize: 24, fontWeight: 700 }}>{otherUser?.username}</h2><p style={{ opacity: 0.8 }}>{isConnected ? formatDuration(timer) : 'Waiting...'}</p></div>
-          <div style={{ width: 60 }} />
-        </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-          {isIncoming && !isConnected ? (
-            <><button onClick={onAccept} style={{ width: 72, height: 72, borderRadius: '50%', background: '#22c55e', border: 'none', color: 'white' }}><Phone size={32} /></button><button onClick={() => onEnd('rejected')} style={{ width: 72, height: 72, borderRadius: '50%', background: '#ef4444', border: 'none', color: 'white' }}><Phone size={32} style={{ transform: 'rotate(135deg)' }} /></button></>
-          ) : (
-            <>
-              <button onClick={toggleMic} style={{ width: 60, height: 60, borderRadius: '50%', background: micOn ? 'rgba(255,255,255,0.1)' : '#ef4444', border: 'none', color: 'white' }}>{micOn ? <Mic size={24} /> : <MicOff size={24} />}</button>
-              <button onClick={() => onEnd('ended')} style={{ width: 72, height: 72, borderRadius: '50%', background: '#ef4444', border: 'none', color: 'white' }}><PhoneOff size={32} /></button>
-              {call.type === 'video' && (
-                <>
-                  <button onClick={toggleVideo} style={{ width: 60, height: 60, borderRadius: '50%', background: videoOn ? 'rgba(255,255,255,0.1)' : '#ef4444', border: 'none', color: 'white' }}>{videoOn ? <Video size={24} /> : <VideoOff size={24} />}</button>
-                  <button onClick={switchCamera} style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}><RefreshCw size={24} /></button>
-                  <button onClick={startScreenShare} style={{ width: 60, height: 60, borderRadius: '50%', background: isScreenSharing ? 'var(--primary)' : 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}><Monitor size={24} /></button>
-                </>
-              )}
-            </>
+      {/* CONTROLS OVERLAY */}
+      <div style={{ position: 'relative', zIndex: 5, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '40px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          {isConnected && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.5)', padding: '6px 16px', borderRadius: 20, fontSize: 13, backdropFilter: 'blur(10px)' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: connState === 'connected' ? '#22c55e' : '#eab308' }} />
+              {connState.toUpperCase()}
+            </div>
           )}
         </div>
+        
+        <div style={{ flex: 1 }} />
+        
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '20px 32px', borderRadius: 40, backdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {isIncoming && !isConnected ? (
+              <>
+                <button onClick={onAccept} style={{ width: 72, height: 72, borderRadius: '50%', background: '#22c55e', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <Phone size={32} />
+                </button>
+                <button onClick={() => onEnd('rejected')} style={{ width: 72, height: 72, borderRadius: '50%', background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <PhoneOff size={32} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={toggleMic} className="btn-call-action" style={{ background: micOn ? 'rgba(255,255,255,0.1)' : '#ef4444' }}>
+                  {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+                </button>
+                
+                {call.type === 'video' && (
+                  <button onClick={toggleVideo} className="btn-call-action" style={{ background: videoOn ? 'rgba(255,255,255,0.1)' : '#ef4444' }}>
+                    {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
+                  </button>
+                )}
+
+                <button onClick={() => onEnd('ended')} style={{ width: 72, height: 72, borderRadius: '50%', background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}>
+                  <PhoneOff size={32} />
+                </button>
+
+                {call.type === 'video' && (
+                  <>
+                    <button onClick={switchCamera} className="btn-call-action"><RefreshCw size={24} /></button>
+                    <button onClick={startScreenShare} className="btn-call-action" style={{ background: isScreenSharing ? 'var(--primary)' : 'rgba(255,255,255,0.1)' }}><Monitor size={24} /></button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
+
+      <style jsx>{`
+        .btn-call-action {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.1);
+          border: none;
+          color: white;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .btn-call-action:hover {
+          background: rgba(255,255,255,0.2);
+          transform: translateY(-2px);
+        }
+      `}</style>
     </motion.div>
   );
 }
@@ -498,9 +583,7 @@ export default function MessagesPage() {
           const { data } = await supabase.from('calls').select('*, caller:caller_id(*)').eq('id', payload.new.id).single();
           if (data) { 
             setActiveCall(data); 
-            if (profile?.notification_settings?.sounds !== false) {
-              playSound('ringtone', profile?.ringtone_url);
-            }
+            // Removed duplicate playSound from here, CallOverlay handles it
           }
         } else if (payload.eventType === 'UPDATE') {
           if (activeCall && payload.new.id === activeCall.id) {
