@@ -21,8 +21,8 @@ function SearchContent() {
     setLoading(true);
     const [users, posts, videos, servers] = await Promise.all([
       supabase.from('profiles').select('*').or(`username.ilike.%${term}%,display_name.ilike.%${term}%,bio.ilike.%${term}%`).limit(10),
-      supabase.from('posts').select('*, profiles:user_id(id, username, avatar_url)').ilike('content', `%${term}%`).limit(10),
-      supabase.from('videos').select('*, profiles:user_id(id, username, avatar_url)').or(`title.ilike.%${term}%,description.ilike.%${term}%`).in('status', ['published', 'active']).limit(10),
+      supabase.from('posts').select('*, profiles:user_id(id, username, avatar_url)').or(`content.ilike.%${term}%,hashtags.cs.{${term}}`).limit(10),
+      supabase.from('videos').select('*, profiles:user_id(id, username, avatar_url)').or(`title.ilike.%${term}%,description.ilike.%${term}%`).eq('status', 'published').limit(10),
       supabase.from('servers').select('*').or(`name.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`).eq('is_public', true).limit(10),
     ]);
     setResults({ users: users.data || [], posts: posts.data || [], videos: videos.data || [], servers: servers.data || [] });
@@ -30,6 +30,7 @@ function SearchContent() {
   };
 
   const handleSearch = (e) => { e.preventDefault(); doSearch(query); };
+  const hasResults = results.users.length > 0 || results.posts.length > 0 || results.videos.length > 0 || results.servers.length > 0;
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '24px 16px' }}>
@@ -88,6 +89,14 @@ function SearchContent() {
           </div>
         </Link>
       ))}
+
+      {!loading && query && !hasResults && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', opacity: 0.5 }}>
+          <SearchIcon size={48} style={{ marginBottom: 16 }} />
+          <h3>No results found for "{query}"</h3>
+          <p>Try searching for something else or check your spelling.</p>
+        </div>
+      )}
     </div>
   );
 }
